@@ -49,5 +49,5 @@ stages:
                 # Modify deployment script based on the app type
                 echo "Starting deployment script run"
                 sudo systemctl stop tomcat
-                sudo mv '$(Pipeline.Workspace)/drop/target/*.war'  /opt/tomcat/webapps/
+                sudo mv '$(Pipeline.Workspace)/drop/target/hello-1.0.war'  /opt/tomcat/webapps/
                 sudo systemctl start tomcat
