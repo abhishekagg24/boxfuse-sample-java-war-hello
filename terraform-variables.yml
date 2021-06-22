@@ -1,0 +1,5 @@
+variables:
+  tfBackendStorageAccountName: ${{ parameters.environment }}rsasa
+  tfBackendStorageContainerName: terraform-backend-files
+  tfBackendFileName: ${{ parameters.environment }}-tf-state-file
+  tfvarsFile: terraform.tfvars

@@ -1,0 +1,10 @@
+steps:          
+    - task: Bash@3
+      displayName: 'Replace suite and database config files'
+      inputs:
+        targetType: 'inline'
+        script: |
+          /bin/cp -f ci/gw-config/suite-config.xml modules/configuration/config/suite/suite-config.xml
+          /bin/cp -f ci/gw-config/database-config.xml modules/configuration/config/database-config.xml
+          /bin/cp -f ci/gw-config/log4j2.xml modules/configuration/config/logging/log4j2.xml
+        workingDirectory: $(build-dir)

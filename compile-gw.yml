@@ -1,0 +1,21 @@
+steps:          
+    - task: Bash@3
+      displayName: 'Prepare customer version properties before build'
+      inputs:
+        targetType: 'inline'
+        script: |
+          commit_id=$(Build.SourceVersion)
+          commit_id=${commit_id:0:7}
+          echo "##vso[task.setvariable variable=commit_id]${commit_id}"
+          touch modules/configuration/res/customer-version.properties
+          echo "customer.build=v-$(Build.SourceBranchName)-b$(Build.BuildId)-${commit_id}" > modules/configuration/res/customer-version.properties
+        workingDirectory: $(build-dir)
+    - task: Bash@3
+      displayName: 'Clean and compile'
+      inputs:
+        targetType: 'inline'
+        script: |
+          chmod +x gwb
+          ./gwb clean
+          ./gwb compile
+        workingDirectory: $(build-dir)

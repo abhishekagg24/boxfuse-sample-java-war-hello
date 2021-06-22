@@ -1,0 +1,29 @@
+steps:
+    - checkout: self
+      path: $(appName)
+      displayName: Checkout the  $(appName) modules code
+
+    - task: UniversalPackages@0
+      displayName: 'Download GW OOTB package'
+      inputs:
+        command: 'download'
+        downloadDirectory: '$(Pipeline.Workspace)'
+        feedsToUse: 'internal'
+        vstsFeed: '$(vstsFeed)'
+        vstsFeedPackage: '$(vstsFeedPackage)'
+        vstsPackageVersion: '*'
+    
+    - task: Bash@3
+      displayName: 'Unzip GW OOTB package'
+      inputs:
+        targetType: 'inline'
+        script: |
+          unzip -o -q $(gwZipFileName) -d $(appName) -x modules/*
+        workingDirectory: '$(Pipeline.Workspace)'
+    
+    #- task: Bash@3
+    #  displayName: 'Merge code with OOTB package'
+    #  inputs:
+    #    targetType: 'inline'
+    #    script: |
+    #      mv $(Build.SourcesDirectory)/modules $(Build.BinariesDirectory)/$(appName)/
