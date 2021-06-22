@@ -1,0 +1,124 @@
+name: cc-deploy-$(DayOfYear)$(Rev:.r)
+
+resources:
+  pipelines:
+  - pipeline: ci-build
+    source: rsa\rsa-cc-build
+    branch: develop
+
+parameters:
+  - name: environment
+    displayName: Provide envirronment name
+    type: string
+    default: devops
+    values:
+    - devops
+    - dev
+
+variables:
+  - template: variables/build-variables.yml
+  - name: 'agent-pool'
+    value: 'self-hosted-poc-gwonaks'
+  - name: 'gw-app-name'
+    value: 'cc'
+  - name: 'build-dir'
+    value: '$(Pipeline.Workspace)/$(appName)'
+  - name: 'build-dir-ci'
+    value: '$(Pipeline.Workspace)/$(appName)/modules/ci'
+  ### adding for deployment
+  - name: keyvault-name
+    value: "kv-${{ parameters.environment }}-rsa" 
+  - name: custom_domain
+    value: 'rsaaks.docloud.eu'
+  - name: ENV-FQDN
+    value: '$(appName).${{parameters.environment}}.$(custom_domain)'
+    
+# trigger:
+#   batch: true
+#   branches:
+#     include: 
+#     - develop
+#     - feature/*
+#   paths:
+#     include:
+#     - '*' 
+#     exclude:
+#     - .gitignore
+
+trigger:
+- none
+
+stages:
+    - stage: deploy
+      displayName: Deploy the app
+      variables:
+      - template: templates/terraform-variables.yml
+        parameters:
+          environment: ${{ parameters.environment }}
+      jobs:
+      - deployment: DeployCC
+        displayName: 'Deploy CC'
+        environment: $(appName)-${{ parameters.environment }}
+        strategy:
+          runOnce:
+            preDeploy:
+              pool:
+                vmImage: 'ubuntu-latest'
+              steps:
+              - template: templates/read-tf-outputs.yml
+                parameters:
+                  environment: ${{ parameters.environment }}
+            deploy:
+              pool:
+                name: 'self-hosted-poc-gwonaks'
+              steps:
+              - download: 'ci-build'
+                artifact: 'manifests'
+                displayName: 'Download CI Build Artifacts (manifests)'
+
+              - task: AzureKeyVault@1
+                inputs:
+                  azureSubscription: "rsa-${{ parameters.environment }}-sp"
+                  KeyVaultName: '$(keyvault-name)'
+                  SecretsFilter: 'kube-config'
+                  RunAsPreJob: false
+                  
+              - task: Bash@3
+                displayName: 'Prepare deployment template'
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    sed -i "s|{{APP-CPU-REQUEST}}|1|g" deployment.yml
+                    sed -i "s|{{APP-CPU-LIMIT}}|2|g" deployment.yml
+                    sed -i "s|{{APP-MEM-REQUEST}}|2048|g" deployment.yml
+                    sed -i "s|{{APP-MEM-LIMIT}}|4096|g" deployment.yml
+                    sed -i "s|{{APP-CODE}}|$(appName)|g" deployment.yml
+                    cat deployment.yml
+                  workingDirectory: '$(Pipeline.Workspace)/ci-build/manifests'
+
+              - task: Bash@3
+                displayName: 'Create and set Kubeconfig file'
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    echo "$(kube-config)" > kubeconfig
+                    mv -f kubeconfig   $HOME/.kube/config 
+                  workingDirectory: '$(Pipeline.Workspace)/ci-build/manifests'
+
+              - task: Bash@3
+                displayName: 'Apply K8s manifests'
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    kubectl apply -f deployment.yml --namespace ns-${{parameters.environment}}
+                  workingDirectory: '$(Pipeline.Workspace)/ci-build/manifests'
+                continueOnError: true
+              
+              - task: Bash@3
+                displayName: 'Cleanup'
+                continueOnError: true
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    rm -f $HOME/.kube/config    
+
